@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soketi-ws
+  labels:
+    app: soketi-ws
+  namespace: hex
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: soketi-ws
+  template:
+    metadata:
+      labels:
+        app: soketi-ws
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext: {}
+      containers:
+        - name: soketi
+          securityContext: {}
+          image: "quay.io/soketi/soketi::1.6.0-16-alpine"
+          imagePullPolicy: Always
+          ports:
+            - name: soketi
+              containerPort: 6001
+              protocol: TCP
+            - name: metrics
+              containerPort: 9601
+              protocol: TCP
+          command:
+            - node
+            - --max-old-space-size=256
+            - --max_old_space_size=256
+            - --optimize_for_size
+            - --optimize-for-size
+            - /app/bin/pm2.js
+            - start
+          envFrom:
+            - configMapRef:
+                name: soketi-ws-env-cm
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              httpHeaders:
+                - name: X-Kube-Healthcheck
+                  value: "Yes"
+              path: /
+              port: 6001
+            initialDelaySeconds: 5
+            periodSeconds: 2
+            successThreshold: 1
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              httpHeaders:
+                - name: X-Kube-Healthcheck
+                  value: "Yes"
+              path: /ready
+              port: 6001
+            initialDelaySeconds: 5
+            periodSeconds: 2
+            successThreshold: 1
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 20"]
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 50Mi
